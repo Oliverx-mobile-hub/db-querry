@@ -1,2 +1,31 @@
-# trae
+# local agent/config
 .trae
+.specify/integrations/.cache/
+
+# Go
+*.exe
+*.test
+*.out
+vendor/
+
+# Node/Vite
+node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# env/secrets/local data
+.env
+.env.*
+*.db
+*.sqlite
+*.sqlite3
+
+# OS/editor
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/

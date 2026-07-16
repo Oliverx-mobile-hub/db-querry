@@ -155,7 +155,7 @@ components:
           additionalProperties: true
     DbSummary:
       type: object
-      required: [name, databaseType, displayDsn, metadataStatus, metadataUpdatedAt]
+      required: [name, databaseType, displayDsn, metadataStatus, connectionStatus, metadataUpdatedAt]
       properties:
         name:
           type: string
@@ -167,6 +167,9 @@ components:
         metadataStatus:
           type: string
           enum: [pending, ready, failed]
+        connectionStatus:
+          type: string
+          enum: [online, offline, unknown]
         metadataUpdatedAt:
           type: [string, "null"]
           format: date-time

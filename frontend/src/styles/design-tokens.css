@@ -1,0 +1,18 @@
+:root {
+  --dq-cream: #f4efea;
+  --dq-cloud: #ffffff;
+  --dq-ink: #383838;
+  --dq-slate: #737373;
+  --dq-graphite: #000000;
+  --dq-sky: #6fc2ff;
+  --dq-sky-strong: #2ba5ff;
+  --dq-sunbeam: #ffde00;
+  --dq-soft-blue: #ebf9ff;
+  --dq-fog: #f8f8f7;
+  --dq-success: #16aa98;
+  --dq-error: #ff7169;
+  --dq-radius: 2px;
+  --dq-border: 2px solid var(--dq-graphite);
+  --dq-shadow-hard: 6px 6px 0 var(--dq-graphite);
+  --dq-font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}

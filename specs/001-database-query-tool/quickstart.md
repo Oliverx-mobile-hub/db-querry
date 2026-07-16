@@ -170,3 +170,9 @@ Invoke-RestMethod `
 - 多语句 SQL 被拒绝。
 - 无 LIMIT 的 SELECT 默认限制 1000 行。
 - 错误响应不包含堆栈和密钥。
+
+## 当前实现说明
+
+- 当前 SQL Guard 使用服务端保守校验实现：拒绝多语句、非 `SELECT`、常见 DML/DDL/DCL/EXEC/CALL/COPY/MERGE 关键字、`SELECT INTO`，并为无 `LIMIT` 查询追加 `LIMIT 1000`。
+- `plan.md` 中原计划使用 PostgreSQL AST parser。由于当前 Windows 环境下 `pg_query_go` 顶层 parser 依赖 cgo，已先落地可编译的保守校验版本；后续如安装可用 cgo 工具链，可将 SQL Guard 升级为 AST parser 实现。
+- 本 quickstart 的真实 PostgreSQL 连接、metadata 采集、查询执行和 OpenAI 调用仍需要本机提供可访问的 PostgreSQL 与有效 `openai_api_key` 后进行人工验证。
