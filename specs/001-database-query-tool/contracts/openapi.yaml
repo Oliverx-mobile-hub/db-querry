@@ -166,6 +166,7 @@ components:
           type: string
         metadataStatus:
           type: string
+          description: Returns failed when the current database connection is offline, even if a cached metadata snapshot exists.
           enum: [pending, ready, failed]
         connectionStatus:
           type: string

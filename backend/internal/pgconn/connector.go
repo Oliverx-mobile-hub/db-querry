@@ -21,4 +21,3 @@ func (Connector) Test(ctx context.Context, url string) error {
 	defer conn.Close(ctx)
 	return conn.Ping(ctx)
 }
-

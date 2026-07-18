@@ -136,6 +136,17 @@ func (h *Handler) getDBMetadata(w http.ResponseWriter, r *http.Request, name str
 		writeError(w, http.StatusInternalServerError, "internalError", "读取数据库连接失败", nil)
 		return
 	}
+	connectionStatus := h.connectionStatus(r.Context(), record)
+	if connectionStatus == "offline" {
+		writeOK(w, map[string]any{
+			"name":              name,
+			"metadataStatus":    MetadataFailed,
+			"connectionStatus":  connectionStatus,
+			"metadataUpdatedAt": record.MetadataUpdatedAt,
+			"metadata":          MetadataDocument{DatabaseType: "postgres", Schemas: []MetadataSchema{}},
+		})
+		return
+	}
 	metadataDoc, updatedAt, err := h.deps.Store.GetLatestMetadataSnapshot(r.Context(), name)
 	if errors.Is(err, ErrNotFound) {
 		metadataDoc = MetadataDocument{DatabaseType: "postgres", Schemas: []MetadataSchema{}}
@@ -149,7 +160,7 @@ func (h *Handler) getDBMetadata(w http.ResponseWriter, r *http.Request, name str
 	writeOK(w, map[string]any{
 		"name":              name,
 		"metadataStatus":    record.MetadataStatus,
-		"connectionStatus":  h.connectionStatus(r.Context(), record),
+		"connectionStatus":  connectionStatus,
 		"metadataUpdatedAt": record.MetadataUpdatedAt,
 		"metadata":          metadataDoc,
 	})
@@ -180,6 +191,9 @@ func countObjects(metadataDoc MetadataDocument) int {
 func (h *Handler) summaryWithHealth(ctx context.Context, record DBConnectionRecord) DBSummary {
 	summary := summaryFromRecord(record)
 	summary.ConnectionStatus = h.connectionStatus(ctx, record)
+	if summary.ConnectionStatus == "offline" {
+		summary.MetadataStatus = MetadataFailed
+	}
 	return summary
 }
 

@@ -43,4 +43,3 @@ func (s *Store) Migrate() error {
 	}
 	return nil
 }
-

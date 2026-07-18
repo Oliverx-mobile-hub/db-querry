@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 )
 
 type naturalQueryRequest struct {
@@ -35,7 +36,19 @@ func (h *Handler) naturalQuery(w http.ResponseWriter, r *http.Request, name stri
 	}
 	draft, err := h.deps.LLM.GenerateSQL(r.Context(), prompt, metadataDoc)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "llmUnavailable", "生成 SQL 失败", nil)
+		message := "生成 SQL 失败"
+		details := map[string]any{"reason": "llmRequestFailed"}
+		if strings.Contains(err.Error(), "missing openai api key") {
+			message = "后端没有读取到 LLM_API_KEY，请检查 backend/env/.env 或系统环境变量，并重启后端服务"
+			details["reason"] = "missingApiKey"
+		} else if strings.Contains(err.Error(), "openai status") {
+			message = "大模型 API 调用失败：" + err.Error()
+			details["reason"] = "openaiStatus"
+			details["upstream"] = err.Error()
+		} else {
+			details["upstream"] = err.Error()
+		}
+		writeError(w, http.StatusBadRequest, "llmUnavailable", message, details)
 		return
 	}
 	draft.Prompt = prompt

@@ -1,6 +1,6 @@
 import type { ApiResponse, DbMetadataResponse, DbSummary, GeneratedSqlDraft, QueryResult } from './types'
 
-const baseUrl = ''
+const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
 export class ApiClientError extends Error {
   constructor(public code: string, message: string, public details: Record<string, unknown> = {}) {

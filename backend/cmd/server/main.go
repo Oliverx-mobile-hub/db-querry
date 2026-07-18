@@ -30,6 +30,8 @@ func main() {
 		log.Fatalf("migrate sqlite store: %v", err)
 	}
 
+	log.Printf("llm config loaded: base_url=%s model=%s wire_api=%s key_loaded=%t", cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIWireAPI, cfg.OpenAIAPIKey != "")
+
 	deps := api.Dependencies{
 		Config:    cfg,
 		Store:     store,
@@ -37,7 +39,7 @@ func main() {
 		Metadata:  metadata.NewCollector(),
 		SQLGuard:  sqlguard.NewValidator(),
 		Query:     query.NewExecutor(store, sqlguard.NewValidator()),
-		LLM:       llm.NewOpenAIClient(cfg.OpenAIAPIKey),
+		LLM:       llm.NewOpenAIClient(cfg.OpenAIAPIKey, cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIWireAPI),
 	}
 
 	server := &http.Server{

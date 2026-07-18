@@ -8,4 +8,3 @@ func TestJSONValueConvertsBytes(t *testing.T) {
 		t.Fatalf("unexpected value: %#v", got)
 	}
 }
-

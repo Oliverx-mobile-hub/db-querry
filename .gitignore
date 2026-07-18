@@ -7,6 +7,8 @@
 *.test
 *.out
 vendor/
+backend/.gocache/
+backend/.tmp-go/
 
 # Node/Vite
 node_modules/
@@ -18,6 +20,8 @@ coverage/
 # env/secrets/local data
 .env
 .env.*
+!.env.example
+!.env.*.example
 *.db
 *.sqlite
 *.sqlite3

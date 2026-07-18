@@ -11,6 +11,7 @@ import (
 	"db-querry/backend/internal/api"
 	_ "modernc.org/sqlite"
 )
+
 type Store struct {
 	db *sql.DB
 }

@@ -112,4 +112,3 @@ WHERE c.relkind IN ('r', 'p', 'v', 'm')
   AND n.nspname NOT IN ('pg_catalog', 'information_schema')
 ORDER BY n.nspname, c.relname, a.attnum
 `
-

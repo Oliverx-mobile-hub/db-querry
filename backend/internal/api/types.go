@@ -77,14 +77,14 @@ type QueryColumn struct {
 }
 
 type QueryResult struct {
-	Columns      []QueryColumn            `json:"columns"`
-	Rows         []map[string]any         `json:"rows"`
-	RowCount     int                      `json:"rowCount"`
-	DurationMs   int64                    `json:"durationMs"`
-	LimitApplied bool                     `json:"limitApplied"`
-	Limit        *int                     `json:"limit"`
-	Empty        bool                     `json:"empty"`
-	Validation   *SQLValidationResult     `json:"validation,omitempty"`
+	Columns      []QueryColumn        `json:"columns"`
+	Rows         []map[string]any     `json:"rows"`
+	RowCount     int                  `json:"rowCount"`
+	DurationMs   int64                `json:"durationMs"`
+	LimitApplied bool                 `json:"limitApplied"`
+	Limit        *int                 `json:"limit"`
+	Empty        bool                 `json:"empty"`
+	Validation   *SQLValidationResult `json:"validation,omitempty"`
 }
 
 type GeneratedSQLDraft struct {

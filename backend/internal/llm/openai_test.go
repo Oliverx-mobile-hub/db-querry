@@ -11,4 +11,3 @@ func TestParseDraft(t *testing.T) {
 		t.Fatalf("unexpected draft: %+v", draft)
 	}
 }
-

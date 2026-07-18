@@ -21,4 +21,3 @@ func TestValidatorRejectsDangerousStatements(t *testing.T) {
 		}
 	}
 }
-

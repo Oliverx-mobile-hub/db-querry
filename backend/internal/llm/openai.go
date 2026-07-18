@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,12 +16,25 @@ import (
 )
 
 type OpenAIClient struct {
-	apiKey string
-	client *http.Client
+	apiKey  string
+	baseURL string
+	model   string
+	wireAPI string
+	client  *http.Client
 }
 
-func NewOpenAIClient(apiKey string) OpenAIClient {
-	return OpenAIClient{apiKey: apiKey, client: &http.Client{Timeout: 45 * time.Second}}
+func NewOpenAIClient(apiKey, baseURL, model, wireAPI string) OpenAIClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	if baseURL == "" {
+		baseURL = "https://api.openai.com/v1"
+	}
+	if model == "" {
+		model = "gpt-4.1-mini"
+	}
+	if wireAPI == "" {
+		wireAPI = "chat"
+	}
+	return OpenAIClient{apiKey: apiKey, baseURL: baseURL, model: model, wireAPI: wireAPI, client: &http.Client{Timeout: 45 * time.Second}}
 }
 
 func (c OpenAIClient) GenerateSQL(ctx context.Context, prompt string, metadata api.MetadataDocument) (api.GeneratedSQLDraft, error) {
@@ -28,20 +43,27 @@ func (c OpenAIClient) GenerateSQL(ctx context.Context, prompt string, metadata a
 	}
 	system := "You generate PostgreSQL SELECT queries only. Return strict JSON with sql, explanation, referencedObjects. Do not include markdown."
 	user := buildPrompt(prompt, metadata)
+	if strings.EqualFold(c.wireAPI, "responses") {
+		return c.generateSQLWithResponses(ctx, system, user)
+	}
+	return c.generateSQLWithChat(ctx, system, user)
+}
+
+func (c OpenAIClient) generateSQLWithChat(ctx context.Context, system string, user string) (api.GeneratedSQLDraft, error) {
 	reqBody := map[string]any{
-		"model": "gpt-4.1-mini",
+		"model": c.model,
 		"messages": []map[string]string{
 			{"role": "system", "content": system},
 			{"role": "user", "content": user},
 		},
-		"temperature": 0,
+		"temperature":     0,
 		"response_format": map[string]string{"type": "json_object"},
 	}
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return api.GeneratedSQLDraft{}, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return api.GeneratedSQLDraft{}, err
 	}
@@ -53,7 +75,8 @@ func (c OpenAIClient) GenerateSQL(ctx context.Context, prompt string, metadata a
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return api.GeneratedSQLDraft{}, fmt.Errorf("openai status %d", resp.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return api.GeneratedSQLDraft{}, fmt.Errorf("openai status %d: %s", resp.StatusCode, sanitizeOpenAIError(string(body)))
 	}
 	var parsed struct {
 		Choices []struct {
@@ -69,6 +92,78 @@ func (c OpenAIClient) GenerateSQL(ctx context.Context, prompt string, metadata a
 		return api.GeneratedSQLDraft{}, errors.New("openai returned no choices")
 	}
 	return parseDraft(parsed.Choices[0].Message.Content)
+}
+
+func (c OpenAIClient) generateSQLWithResponses(ctx context.Context, system string, user string) (api.GeneratedSQLDraft, error) {
+	reqBody := map[string]any{
+		"model": c.model,
+		"input": []map[string]string{
+			{"role": "system", "content": system},
+			{"role": "user", "content": user},
+		},
+		"text": map[string]any{
+			"format": map[string]string{"type": "json_object"},
+		},
+	}
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return api.GeneratedSQLDraft{}, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/responses", bytes.NewReader(body))
+	if err != nil {
+		return api.GeneratedSQLDraft{}, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return api.GeneratedSQLDraft{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return api.GeneratedSQLDraft{}, fmt.Errorf("openai status %d: %s", resp.StatusCode, sanitizeOpenAIError(string(body)))
+	}
+	var parsed struct {
+		OutputText string `json:"output_text"`
+		Output     []struct {
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"output"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return api.GeneratedSQLDraft{}, err
+	}
+	text := parsed.OutputText
+	if text == "" {
+		for _, item := range parsed.Output {
+			for _, content := range item.Content {
+				if content.Text != "" {
+					text = content.Text
+					break
+				}
+			}
+			if text != "" {
+				break
+			}
+		}
+	}
+	if text == "" {
+		return api.GeneratedSQLDraft{}, errors.New("openai returned no response text")
+	}
+	return parseDraft(text)
+}
+
+func sanitizeOpenAIError(body string) string {
+	body = strings.ReplaceAll(body, "\n", " ")
+	body = strings.TrimSpace(body)
+	body = regexp.MustCompile(`sk-[A-Za-z0-9_\-*]+`).ReplaceAllString(body, "sk-[redacted]")
+	if body == "" {
+		return "empty error body"
+	}
+	return body
 }
 
 func buildPrompt(prompt string, metadata api.MetadataDocument) string {
@@ -94,4 +189,3 @@ func parseDraft(content string) (api.GeneratedSQLDraft, error) {
 	}
 	return api.GeneratedSQLDraft{SQL: raw.SQL, Explanation: raw.Explanation, ReferencedObjects: raw.ReferencedObjects}, nil
 }
-

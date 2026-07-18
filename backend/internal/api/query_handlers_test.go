@@ -10,4 +10,3 @@ func TestValidDBName(t *testing.T) {
 		t.Fatalf("expected invalid db name")
 	}
 }
-

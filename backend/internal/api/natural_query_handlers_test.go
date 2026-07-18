@@ -12,4 +12,3 @@ func TestNaturalQueryRequestSupportsPromtAlias(t *testing.T) {
 		t.Fatalf("unexpected prompt: %s", prompt)
 	}
 }
-

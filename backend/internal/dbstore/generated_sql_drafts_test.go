@@ -24,4 +24,3 @@ func TestInsertGeneratedSQLDraft(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
