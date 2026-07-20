@@ -7,7 +7,7 @@
     <section class="workspace">
       <QueryEditor v-model="sqlText" :db-name="selectedDb" :loading="queryLoading" @execute="runQuery" />
       <NaturalLanguagePanel :db-name="selectedDb" :draft="draft" :loading="generateLoading" @generate="generateSql" @use-sql="sqlText = $event" />
-      <ResultTable :result="result" />
+      <ResultTable :result="result" :loading="queryLoading" :db-name="selectedDb" />
     </section>
   </main>
 </template>

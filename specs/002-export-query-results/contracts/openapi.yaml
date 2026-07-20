@@ -1,0 +1,171 @@
+openapi: 3.1.0
+info:
+  title: db-querry Export Query Results Contract
+  version: 0.1.0
+  description: >
+    导出当前查询结果为 CSV/JSON 的契约说明。v1 不新增后端导出 API；
+    前端使用现有 QueryResponse 中的 QueryResult 生成下载文件。
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/dbs/{name}/query:
+    post:
+      summary: 查询某个数据库的信息，导出功能复用该响应
+      operationId: queryDb
+      parameters:
+        - $ref: "#/components/parameters/DbName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueryRequest"
+      responses:
+        "200":
+          description: 查询结果；前端 CSV/JSON 导出的唯一数据来源
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+components:
+  parameters:
+    DbName:
+      name: name
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9_-]{1,64}$"
+  responses:
+    ErrorResponse:
+      description: 规范化错误
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/FailureEnvelope"
+  schemas:
+    QueryRequest:
+      type: object
+      required: [sql]
+      properties:
+        sql:
+          type: string
+    QueryResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/QueryResult"
+    QueryResult:
+      type: object
+      required: [columns, rows, rowCount, durationMs, limitApplied, limit, empty]
+      properties:
+        columns:
+          type: array
+          items:
+            $ref: "#/components/schemas/QueryColumn"
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        rowCount:
+          type: integer
+          minimum: 0
+        durationMs:
+          type: integer
+          minimum: 0
+        limitApplied:
+          type: boolean
+        limit:
+          type: [integer, "null"]
+        empty:
+          type: boolean
+        validation:
+          $ref: "#/components/schemas/SqlValidationResult"
+    QueryColumn:
+      type: object
+      required: [name, dataType]
+      properties:
+        name:
+          type: string
+        dataType:
+          type: string
+    SqlValidationResult:
+      type: object
+      required: [valid, executable, statementType, normalizedSql, limitApplied, limit, errors]
+      properties:
+        valid:
+          type: boolean
+        executable:
+          type: boolean
+        statementType:
+          type: string
+          enum: [select, unknown]
+        normalizedSql:
+          type: string
+        limitApplied:
+          type: boolean
+        limit:
+          type: [integer, "null"]
+        errors:
+          type: array
+          items:
+            type: object
+            required: [code, message]
+            properties:
+              code:
+                type: string
+              message:
+                type: string
+    SuccessEnvelope:
+      type: object
+      required: [success, data, error]
+      properties:
+        success:
+          const: true
+        data:
+          type: object
+        error:
+          type: "null"
+    FailureEnvelope:
+      type: object
+      required: [success, data, error]
+      properties:
+        success:
+          const: false
+        data:
+          type: "null"
+        error:
+          $ref: "#/components/schemas/ApiError"
+    ApiError:
+      type: object
+      required: [code, message, details]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+x-frontend-export-contract:
+  formats:
+    - csv
+    - json
+  csv:
+    source: QueryResult.columns + QueryResult.rows
+    columnOrder: QueryResult.columns order
+    mimeType: text/csv;charset=utf-8
+    filenamePattern: "{safeDbName}-query-{YYYYMMDD-HHmmss}.csv"
+  json:
+    source: complete QueryResult
+    mimeType: application/json;charset=utf-8
+    filenamePattern: "{safeDbName}-query-{YYYYMMDD-HHmmss}.json"
+  disabledWhen:
+    - result is null
+    - result.empty is true
+    - query loading is true

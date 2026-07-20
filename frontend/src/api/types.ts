@@ -65,6 +65,21 @@ export type QueryResult = {
   validation?: SqlValidationResult
 }
 
+export type ExportFormat = 'csv' | 'json'
+
+export type ExportFile = {
+  filename: string
+  mimeType: string
+  content: string
+}
+
+export type ExportContext = {
+  dbName: string | null
+  result: QueryResult | null
+  loading: boolean
+  now: Date
+}
+
 export type GeneratedSqlDraft = {
   prompt: string
   sql: string

@@ -6,6 +6,8 @@ describe('ResultTable', () => {
   it('shows row count', () => {
     const wrapper = mount(ResultTable, {
       props: {
+        dbName: 'local',
+        loading: false,
         result: {
           columns: [{ name: 'id', dataType: 'integer' }],
           rows: [{ id: 1 }],
@@ -14,6 +16,13 @@ describe('ResultTable', () => {
           limitApplied: false,
           limit: null,
           empty: false,
+        },
+      },
+      global: {
+        stubs: {
+          ElButton: { template: '<button><slot /></button>' },
+          ElTable: { template: '<table><slot /></table>' },
+          ElTableColumn: { template: '<col />' },
         },
       },
     })
