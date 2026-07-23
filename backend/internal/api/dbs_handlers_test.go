@@ -12,6 +12,35 @@ func TestSanitizeDSNRemovesPassword(t *testing.T) {
 	}
 }
 
+func TestSanitizeMySQLDSNRemovesPassword(t *testing.T) {
+	got := sanitizeDSN("mysql://root:secret@localhost:3306/interview_db")
+	if got != "mysql://root@localhost:3306/interview_db" {
+		t.Fatalf("unexpected sanitized dsn: %s", got)
+	}
+}
+
+func TestResolveDatabaseType(t *testing.T) {
+	mysqlType, err := resolveDatabaseType("", "mysql://root:secret@localhost:3306/interview_db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mysqlType != DatabaseTypeMySQL {
+		t.Fatalf("expected mysql, got %s", mysqlType)
+	}
+
+	postgresType, err := resolveDatabaseType("", "postgres://postgres:secret@localhost:5432/postgres")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postgresType != DatabaseTypePostgres {
+		t.Fatalf("expected postgres, got %s", postgresType)
+	}
+
+	if _, err := resolveDatabaseType(DatabaseTypeMySQL, "postgres://postgres:secret@localhost:5432/postgres"); err == nil {
+		t.Fatalf("expected database type mismatch error")
+	}
+}
+
 type fakeStore struct{}
 
 func (fakeStore) UpsertConnection(context.Context, DBConnectionRecord) error    { return nil }

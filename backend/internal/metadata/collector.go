@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
@@ -13,7 +14,18 @@ type Collector struct{}
 
 func NewCollector() Collector { return Collector{} }
 
-func (Collector) Collect(ctx context.Context, url string) (api.MetadataDocument, []string, error) {
+func (c Collector) Collect(ctx context.Context, databaseType api.DatabaseType, url string) (api.MetadataDocument, []string, error) {
+	switch api.NormalizeDatabaseType(databaseType) {
+	case api.DatabaseTypeMySQL:
+		return c.collectMySQL(ctx, url)
+	case api.DatabaseTypePostgres:
+		return c.collectPostgres(ctx, url)
+	default:
+		return api.MetadataDocument{}, nil, fmt.Errorf("unsupported database type: %s", databaseType)
+	}
+}
+
+func (Collector) collectPostgres(ctx context.Context, url string) (api.MetadataDocument, []string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
@@ -76,7 +88,7 @@ func (Collector) Collect(ctx context.Context, url string) (api.MetadataDocument,
 	}
 	sort.Slice(schemas, func(i, j int) bool { return schemas[i].Name < schemas[j].Name })
 
-	return api.MetadataDocument{DatabaseType: "postgres", Schemas: schemas}, nil, nil
+	return api.MetadataDocument{DatabaseType: api.DatabaseTypePostgres, Schemas: schemas}, nil, nil
 }
 
 const metadataSQL = `

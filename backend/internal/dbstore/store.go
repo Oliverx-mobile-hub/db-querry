@@ -173,12 +173,14 @@ type scanner interface {
 
 func scanConnection(row scanner) (api.DBConnectionRecord, error) {
 	var record api.DBConnectionRecord
+	var databaseType string
 	var status string
 	var metadataUpdatedAt sql.NullString
-	err := row.Scan(&record.Name, &record.DatabaseType, &record.URL, &record.DisplayDSN, &status, &record.MetadataError, &record.CreatedAt, &record.UpdatedAt, &metadataUpdatedAt)
+	err := row.Scan(&record.Name, &databaseType, &record.URL, &record.DisplayDSN, &status, &record.MetadataError, &record.CreatedAt, &record.UpdatedAt, &metadataUpdatedAt)
 	if err != nil {
 		return api.DBConnectionRecord{}, err
 	}
+	record.DatabaseType = api.NormalizeDatabaseType(api.DatabaseType(databaseType))
 	record.MetadataStatus = api.DBMetadataStatus(status)
 	if metadataUpdatedAt.Valid {
 		record.MetadataUpdatedAt = &metadataUpdatedAt.String

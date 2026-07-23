@@ -41,7 +41,11 @@ func (c OpenAIClient) GenerateSQL(ctx context.Context, prompt string, metadata a
 	if c.apiKey == "" {
 		return api.GeneratedSQLDraft{}, errors.New("missing openai api key")
 	}
-	system := "You generate PostgreSQL SELECT queries only. Return strict JSON with sql, explanation, referencedObjects. Do not include markdown."
+	dialect := "PostgreSQL"
+	if api.NormalizeDatabaseType(metadata.DatabaseType) == api.DatabaseTypeMySQL {
+		dialect = "MySQL"
+	}
+	system := fmt.Sprintf("You generate %s SELECT queries only. Use %s SQL dialect. Return strict JSON with sql, explanation, referencedObjects. Do not include markdown.", dialect, dialect)
 	user := buildPrompt(prompt, metadata)
 	if strings.EqualFold(c.wireAPI, "responses") {
 		return c.generateSQLWithResponses(ctx, system, user)
@@ -167,12 +171,13 @@ func sanitizeOpenAIError(body string) string {
 }
 
 func buildPrompt(prompt string, metadata api.MetadataDocument) string {
+	metadata.DatabaseType = api.NormalizeDatabaseType(metadata.DatabaseType)
 	metadataJSON, _ := json.Marshal(metadata)
 	text := string(metadataJSON)
 	if len(text) > 24000 {
 		text = text[:24000]
 	}
-	return fmt.Sprintf("User request: %s\nMetadata JSON: %s\nReturn JSON: {\"sql\":\"SELECT ...\",\"explanation\":\"...\",\"referencedObjects\":[\"schema.table\"]}", prompt, text)
+	return fmt.Sprintf("Database type: %s\nUser request: %s\nMetadata JSON: %s\nReturn JSON: {\"sql\":\"SELECT ...\",\"explanation\":\"...\",\"referencedObjects\":[\"schema.table\"]}", metadata.DatabaseType, prompt, text)
 }
 
 func parseDraft(content string) (api.GeneratedSQLDraft, error) {

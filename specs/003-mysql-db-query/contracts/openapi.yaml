@@ -1,0 +1,407 @@
+openapi: 3.1.0
+info:
+  title: db-querry API - MySQL Support
+  version: 0.1.0
+  description: API contract for adding MySQL database query support while preserving existing PostgreSQL behavior.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/dbs:
+    get:
+      summary: 获取所有已连接数据库
+      operationId: listDbs
+      responses:
+        "200":
+          description: 数据库连接列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListDbsResponse"
+  /api/v1/dbs/{name}:
+    put:
+      summary: 添加或更新数据库连接，支持 PostgreSQL 和 MySQL
+      operationId: putDb
+      parameters:
+        - $ref: "#/components/parameters/DbName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PutDbRequest"
+            examples:
+              mysqlInterviewDb:
+                value:
+                  databaseType: mysql
+                  url: mysql://root:password@localhost:3306/interview_db
+              postgresLegacy:
+                value:
+                  url: postgres://postgres:postgres@localhost:5432/postgres
+      responses:
+        "200":
+          description: 连接已保存并完成 metadata 采集
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PutDbResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+    get:
+      summary: 获取一个数据库的 metadata
+      operationId: getDbMetadata
+      parameters:
+        - $ref: "#/components/parameters/DbName"
+      responses:
+        "200":
+          description: Metadata 快照
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetDbMetadataResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+    delete:
+      summary: 删除数据库连接
+      operationId: deleteDb
+      parameters:
+        - $ref: "#/components/parameters/DbName"
+      responses:
+        "200":
+          description: 已删除
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteDbResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+  /api/v1/dbs/{name}/query:
+    post:
+      summary: 查询某个数据库的信息
+      operationId: queryDb
+      parameters:
+        - $ref: "#/components/parameters/DbName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueryRequest"
+      responses:
+        "200":
+          description: 查询结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+  /api/v1/dbs/{name}/query/natural:
+    post:
+      summary: 根据自然语言生成 SQL
+      operationId: generateSql
+      parameters:
+        - $ref: "#/components/parameters/DbName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NaturalQueryRequest"
+      responses:
+        "200":
+          description: SQL 草稿
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NaturalQueryResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+components:
+  parameters:
+    DbName:
+      name: name
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9_-]{1,64}$"
+  responses:
+    ErrorResponse:
+      description: 规范化错误
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/FailureEnvelope"
+  schemas:
+    DatabaseType:
+      type: string
+      enum: [postgres, mysql]
+    PutDbRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+        databaseType:
+          $ref: "#/components/schemas/DatabaseType"
+      additionalProperties: false
+    DbSummary:
+      type: object
+      required: [name, databaseType, displayDsn, metadataStatus, connectionStatus, metadataUpdatedAt]
+      properties:
+        name:
+          type: string
+        databaseType:
+          $ref: "#/components/schemas/DatabaseType"
+        displayDsn:
+          type: string
+        metadataStatus:
+          type: string
+          enum: [pending, ready, failed]
+        connectionStatus:
+          type: string
+          enum: [online, offline, unknown]
+        metadataUpdatedAt:
+          type: [string, "null"]
+    MetadataDocument:
+      type: object
+      required: [databaseType, schemas]
+      properties:
+        databaseType:
+          $ref: "#/components/schemas/DatabaseType"
+        schemas:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetadataSchema"
+    MetadataSchema:
+      type: object
+      required: [name, objects]
+      properties:
+        name:
+          type: string
+        objects:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetadataObject"
+    MetadataObject:
+      type: object
+      required: [schema, name, type, comment, columns]
+      properties:
+        schema:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [table, view]
+        comment:
+          type: string
+        columns:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetadataColumn"
+    MetadataColumn:
+      type: object
+      required: [name, dataType, nullable, primaryKey, ordinal, comment]
+      properties:
+        name:
+          type: string
+        dataType:
+          type: string
+        nullable:
+          type: boolean
+        primaryKey:
+          type: boolean
+        ordinal:
+          type: integer
+        comment:
+          type: string
+    QueryRequest:
+      type: object
+      required: [sql]
+      properties:
+        sql:
+          type: string
+    QueryResult:
+      type: object
+      required: [columns, rows, rowCount, durationMs, limitApplied, limit, empty]
+      properties:
+        columns:
+          type: array
+          items:
+            type: object
+            required: [name, dataType]
+            properties:
+              name:
+                type: string
+              dataType:
+                type: string
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        rowCount:
+          type: integer
+        durationMs:
+          type: integer
+        limitApplied:
+          type: boolean
+        limit:
+          type: [integer, "null"]
+        empty:
+          type: boolean
+        validation:
+          $ref: "#/components/schemas/SqlValidationResult"
+    SqlValidationResult:
+      type: object
+      required: [valid, executable, statementType, normalizedSql, limitApplied, limit, errors]
+      properties:
+        valid:
+          type: boolean
+        executable:
+          type: boolean
+        statementType:
+          type: string
+          enum: [select, unknown]
+        normalizedSql:
+          type: string
+        limitApplied:
+          type: boolean
+        limit:
+          type: [integer, "null"]
+        errors:
+          type: array
+          items:
+            type: object
+            required: [code, message]
+            properties:
+              code:
+                type: string
+              message:
+                type: string
+    GeneratedSqlDraft:
+      type: object
+      required: [prompt, sql, explanation, referencedObjects, validation]
+      properties:
+        prompt:
+          type: string
+        sql:
+          type: string
+        explanation:
+          type: string
+        referencedObjects:
+          type: array
+          items:
+            type: string
+        validation:
+          $ref: "#/components/schemas/SqlValidationResult"
+    NaturalQueryRequest:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+    ListDbsResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [dbs]
+              properties:
+                dbs:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/DbSummary"
+    PutDbResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [db]
+              properties:
+                db:
+                  $ref: "#/components/schemas/DbSummary"
+    GetDbMetadataResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [name, metadataStatus, connectionStatus, metadataUpdatedAt, metadata]
+              properties:
+                name:
+                  type: string
+                metadataStatus:
+                  type: string
+                  enum: [pending, ready, failed]
+                connectionStatus:
+                  type: string
+                  enum: [online, offline, unknown]
+                metadataUpdatedAt:
+                  type: [string, "null"]
+                metadata:
+                  $ref: "#/components/schemas/MetadataDocument"
+    QueryResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/QueryResult"
+    NaturalQueryResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/GeneratedSqlDraft"
+    DeleteDbResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [deleted, name]
+              properties:
+                deleted:
+                  type: boolean
+                name:
+                  type: string
+    SuccessEnvelope:
+      type: object
+      required: [success, data, error]
+      properties:
+        success:
+          const: true
+        data:
+          type: object
+        error:
+          type: "null"
+    FailureEnvelope:
+      type: object
+      required: [success, data, error]
+      properties:
+        success:
+          const: false
+        data:
+          type: "null"
+        error:
+          $ref: "#/components/schemas/ApiError"
+    ApiError:
+      type: object
+      required: [code, message, details]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true

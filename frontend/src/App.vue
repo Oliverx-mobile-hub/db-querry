@@ -2,7 +2,7 @@
   <main class="app-shell">
     <aside class="database-zone">
       <ConnectionPanel :dbs="dbs" :selected-name="selectedDb" :loading="loading" @select="selectDb" @add="addDb" @delete="deleteDb" />
-      <MetadataExplorer :metadata="metadata" />
+      <MetadataExplorer :metadata="metadata" :db-name="selectedDb" @refresh="refreshMetadata" />
     </aside>
     <section class="workspace">
       <QueryEditor v-model="sqlText" :db-name="selectedDb" :loading="queryLoading" @execute="runQuery" />
@@ -16,7 +16,7 @@
 import { onMounted, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { api, ApiClientError } from './api/client'
-import type { DbSummary, GeneratedSqlDraft, MetadataDocument, QueryResult } from './api/types'
+import type { DatabaseType, DbSummary, GeneratedSqlDraft, MetadataDocument, QueryResult } from './api/types'
 import ConnectionPanel from './components/ConnectionPanel.vue'
 import MetadataExplorer from './components/MetadataExplorer.vue'
 import QueryEditor from './components/QueryEditor.vue'
@@ -40,14 +40,24 @@ async function loadDbs() {
   await withError(async () => {
     const data = await api.listDbs()
     dbs.value = data.dbs
-    if (!selectedDb.value && data.dbs.length > 0) await selectDb(data.dbs[0].name)
+    const selectedExists = selectedDb.value ? data.dbs.some((db) => db.name === selectedDb.value) : false
+    if (selectedDb.value && selectedExists) {
+      await selectDb(selectedDb.value)
+    } else if (!selectedDb.value && data.dbs.length > 0) {
+      await selectDb(data.dbs[0].name)
+    } else if (selectedDb.value && !selectedExists) {
+      selectedDb.value = null
+      metadata.value = null
+      result.value = null
+      draft.value = null
+    }
   })
 }
 
-async function addDb(payload: { name: string; url: string }) {
+async function addDb(payload: { name: string; url: string; databaseType: DatabaseType }) {
   loading.value = true
   await withError(async () => {
-    await api.putDb(payload.name, payload.url)
+    await api.putDb(payload.name, payload.url, payload.databaseType)
     await loadDbs()
     await selectDb(payload.name)
   })
@@ -85,6 +95,11 @@ async function selectDb(name: string) {
     const data = await api.getMetadata(name)
     metadata.value = data.metadata
   })
+}
+
+async function refreshMetadata() {
+  if (!selectedDb.value) return
+  await selectDb(selectedDb.value)
 }
 
 async function runQuery(sql: string) {

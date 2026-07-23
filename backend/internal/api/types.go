@@ -8,9 +8,29 @@ const (
 	MetadataFailed  DBMetadataStatus = "failed"
 )
 
+type DatabaseType string
+
+const (
+	DatabaseTypePostgres DatabaseType = "postgres"
+	DatabaseTypeMySQL    DatabaseType = "mysql"
+)
+
+func NormalizeDatabaseType(databaseType DatabaseType) DatabaseType {
+	switch databaseType {
+	case DatabaseTypeMySQL:
+		return DatabaseTypeMySQL
+	default:
+		return DatabaseTypePostgres
+	}
+}
+
+func SupportedDatabaseType(databaseType DatabaseType) bool {
+	return databaseType == DatabaseTypePostgres || databaseType == DatabaseTypeMySQL
+}
+
 type DBConnectionRecord struct {
 	Name              string
-	DatabaseType      string
+	DatabaseType      DatabaseType
 	URL               string
 	DisplayDSN        string
 	MetadataStatus    DBMetadataStatus
@@ -22,7 +42,7 @@ type DBConnectionRecord struct {
 
 type DBSummary struct {
 	Name              string           `json:"name"`
-	DatabaseType      string           `json:"databaseType"`
+	DatabaseType      DatabaseType     `json:"databaseType"`
 	DisplayDSN        string           `json:"displayDsn"`
 	MetadataStatus    DBMetadataStatus `json:"metadataStatus"`
 	ConnectionStatus  string           `json:"connectionStatus"`
@@ -30,7 +50,7 @@ type DBSummary struct {
 }
 
 type MetadataDocument struct {
-	DatabaseType string           `json:"databaseType"`
+	DatabaseType DatabaseType     `json:"databaseType"`
 	Schemas      []MetadataSchema `json:"schemas"`
 }
 
@@ -98,7 +118,7 @@ type GeneratedSQLDraft struct {
 func summaryFromRecord(record DBConnectionRecord) DBSummary {
 	return DBSummary{
 		Name:              record.Name,
-		DatabaseType:      record.DatabaseType,
+		DatabaseType:      NormalizeDatabaseType(record.DatabaseType),
 		DisplayDSN:        record.DisplayDSN,
 		MetadataStatus:    record.MetadataStatus,
 		ConnectionStatus:  "unknown",

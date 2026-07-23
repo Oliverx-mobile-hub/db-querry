@@ -34,6 +34,10 @@ function mountResultTable(props: { result: QueryResult | null; loading: boolean;
         ElEmpty: { template: '<div />' },
         ElTable: { template: '<table><slot /></table>' },
         ElTableColumn: { template: '<col />' },
+        ElPagination: {
+          props: ['total'],
+          template: '<div data-testid="pagination">{{ total }}</div>',
+        },
       },
     },
   })
@@ -66,5 +70,20 @@ describe('ResultTable', () => {
 
     expect(wrapper.get('[data-testid="export-csv"]').attributes('disabled')).toBeDefined()
     expect(wrapper.get('[data-testid="export-json"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('shows pagination summary for large result sets', () => {
+    const rows = Array.from({ length: 75 }, (_, index) => ({ id: index + 1 }))
+    const wrapper = mountResultTable({
+      result: {
+        ...result,
+        rows,
+        rowCount: rows.length,
+      },
+      loading: false,
+    })
+
+    expect(wrapper.get('[data-testid="page-summary"]').text()).toBe('Showing 1-50 of 75')
+    expect(wrapper.get('[data-testid="pagination"]').text()).toBe('75')
   })
 })

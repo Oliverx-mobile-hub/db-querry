@@ -15,7 +15,7 @@ type Store interface {
 }
 
 type Validator interface {
-	Validate(sql string) api.SQLValidationResult
+	Validate(databaseType api.DatabaseType, sql string) api.SQLValidationResult
 }
 
 type Executor struct {
@@ -28,19 +28,28 @@ func NewExecutor(store Store, validator Validator) Executor {
 }
 
 func (e Executor) Execute(ctx context.Context, dbName string, sqlText string) (api.QueryResult, error) {
-	validation := e.validator.Validate(sqlText)
-	if !validation.Executable {
-		return api.QueryResult{Validation: &validation}, fmt.Errorf("sql validation failed")
-	}
-
 	record, err := e.store.GetConnection(ctx, dbName)
 	if err != nil {
 		return api.QueryResult{}, err
 	}
+	databaseType := api.NormalizeDatabaseType(record.DatabaseType)
+	validation := e.validator.Validate(databaseType, sqlText)
+	if !validation.Executable {
+		return api.QueryResult{Validation: &validation}, fmt.Errorf("sql validation failed")
+	}
 
+	switch databaseType {
+	case api.DatabaseTypeMySQL:
+		return e.executeMySQL(ctx, record.URL, validation)
+	default:
+		return e.executePostgres(ctx, record.URL, validation)
+	}
+}
+
+func (e Executor) executePostgres(ctx context.Context, rawURL string, validation api.SQLValidationResult) (api.QueryResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	conn, err := pgx.Connect(ctx, record.URL)
+	conn, err := pgx.Connect(ctx, rawURL)
 	if err != nil {
 		return api.QueryResult{}, err
 	}

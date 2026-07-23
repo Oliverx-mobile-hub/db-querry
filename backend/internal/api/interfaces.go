@@ -20,15 +20,15 @@ type Store interface {
 }
 
 type Connector interface {
-	Test(ctx context.Context, url string) error
+	Test(ctx context.Context, databaseType DatabaseType, url string) error
 }
 
 type MetadataCollector interface {
-	Collect(ctx context.Context, url string) (MetadataDocument, []string, error)
+	Collect(ctx context.Context, databaseType DatabaseType, url string) (MetadataDocument, []string, error)
 }
 
 type SQLValidator interface {
-	Validate(sql string) SQLValidationResult
+	Validate(databaseType DatabaseType, sql string) SQLValidationResult
 }
 
 type QueryExecutor interface {

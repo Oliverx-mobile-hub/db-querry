@@ -5,11 +5,11 @@ import (
 
 	"db-querry/backend/internal/api"
 	"db-querry/backend/internal/config"
+	"db-querry/backend/internal/dbconn"
 	"db-querry/backend/internal/dbstore"
 	"db-querry/backend/internal/llm"
 	"db-querry/backend/internal/logging"
 	"db-querry/backend/internal/metadata"
-	"db-querry/backend/internal/pgconn"
 	"db-querry/backend/internal/query"
 	"db-querry/backend/internal/sqlguard"
 )
@@ -35,7 +35,7 @@ func main() {
 	deps := api.Dependencies{
 		Config:    cfg,
 		Store:     store,
-		Connector: pgconn.NewConnector(),
+		Connector: dbconn.NewConnector(),
 		Metadata:  metadata.NewCollector(),
 		SQLGuard:  sqlguard.NewValidator(),
 		Query:     query.NewExecutor(store, sqlguard.NewValidator()),

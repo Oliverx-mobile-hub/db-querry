@@ -25,6 +25,19 @@ func (h *Handler) naturalQuery(w http.ResponseWriter, r *http.Request, name stri
 		writeError(w, http.StatusBadRequest, "invalidRequest", "请求体必须包含 prompt", nil)
 		return
 	}
+	record, err := h.deps.Store.GetConnection(r.Context(), name)
+	if errors.Is(err, ErrNotFound) {
+		writeError(w, http.StatusNotFound, "dbNotFound", "数据库连接不存在", nil)
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internalError", "读取数据库连接失败", nil)
+		return
+	}
+	if h.connectionStatus(r.Context(), record) == "offline" {
+		writeError(w, http.StatusBadRequest, "dbOffline", "数据库当前不可连接，请先恢复连接或重新采集 metadata", nil)
+		return
+	}
 	metadataDoc, _, err := h.deps.Store.GetLatestMetadataSnapshot(r.Context(), name)
 	if errors.Is(err, ErrNotFound) {
 		writeError(w, http.StatusBadRequest, "metadataCollectionFailed", "请先采集 metadata", nil)
@@ -33,6 +46,9 @@ func (h *Handler) naturalQuery(w http.ResponseWriter, r *http.Request, name stri
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internalError", "读取 metadata 失败", nil)
 		return
+	}
+	if metadataDoc.DatabaseType == "" {
+		metadataDoc.DatabaseType = NormalizeDatabaseType(record.DatabaseType)
 	}
 	draft, err := h.deps.LLM.GenerateSQL(r.Context(), prompt, metadataDoc)
 	if err != nil {
@@ -52,7 +68,7 @@ func (h *Handler) naturalQuery(w http.ResponseWriter, r *http.Request, name stri
 		return
 	}
 	draft.Prompt = prompt
-	draft.Validation = h.deps.SQLGuard.Validate(draft.SQL)
+	draft.Validation = h.deps.SQLGuard.Validate(NormalizeDatabaseType(metadataDoc.DatabaseType), draft.SQL)
 	_ = h.deps.Store.InsertGeneratedSQLDraft(r.Context(), name, draft)
 	writeOK(w, draft)
 }

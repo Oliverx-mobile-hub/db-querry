@@ -15,6 +15,7 @@
       >
         <span class="db-row">
           <strong>{{ db.name }}</strong>
+          <span class="type-badge">{{ db.databaseType }}</span>
           <el-button class="delete-button" size="small" plain @click.stop="$emit('delete', db.name)">Delete</el-button>
         </span>
         <span>{{ db.displayDsn }}</span>
@@ -31,8 +32,14 @@
         <el-form-item label="Name">
           <el-input v-model="name" placeholder="local" />
         </el-form-item>
-        <el-form-item label="Postgres URL">
-          <el-input v-model="url" placeholder="postgres://postgres:postgre@localhost:5432/postgres" />
+        <el-form-item label="Database Type">
+          <el-select v-model="databaseType" class="type-select">
+            <el-option label="PostgreSQL" value="postgres" />
+            <el-option label="MySQL" value="mysql" />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="databaseType === 'mysql' ? 'MySQL URL' : 'Postgres URL'">
+          <el-input v-model="url" :placeholder="urlPlaceholder" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -44,18 +51,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import type { DbSummary } from '../api/types'
+import { computed, ref } from 'vue'
+import type { DatabaseType, DbSummary } from '../api/types'
 
 defineProps<{ dbs: DbSummary[]; selectedName: string | null; loading: boolean }>()
-const emit = defineEmits<{ select: [name: string]; add: [payload: { name: string; url: string }]; delete: [name: string] }>()
+const emit = defineEmits<{ select: [name: string]; add: [payload: { name: string; url: string; databaseType: DatabaseType }]; delete: [name: string] }>()
 
 const dialogVisible = ref(false)
 const name = ref('local')
 const url = ref('')
+const databaseType = ref<DatabaseType>('postgres')
+
+const urlPlaceholder = computed(() =>
+  databaseType.value === 'mysql'
+    ? 'mysql://root:password@localhost:3306/interview_db'
+    : 'postgres://postgres:postgre@localhost:5432/postgres',
+)
 
 function submit() {
-  emit('add', { name: name.value.trim(), url: url.value.trim() })
+  emit('add', { name: name.value.trim(), url: url.value.trim(), databaseType: databaseType.value })
   dialogVisible.value = false
 }
 
@@ -85,11 +99,29 @@ function statusLabel(status: DbSummary['connectionStatus']) {
 .db-item strong { font-size: 14px; text-transform: uppercase; }
 .db-item span { color: var(--dq-slate); font-size: 12px; overflow-wrap: anywhere; }
 .db-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.db-row strong { flex: 1; min-width: 0; }
 .delete-button {
   padding: 4px 8px !important;
   background: #fff4f4 !important;
   border-width: 1px !important;
   color: var(--dq-error) !important;
+}
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 3px 7px;
+  border: 1px solid var(--dq-graphite);
+  border-radius: var(--dq-radius);
+  background: var(--dq-cloud);
+  color: var(--dq-ink) !important;
+  font-size: 10px !important;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.type-select {
+  width: 100%;
 }
 .status-pill {
   display: inline-flex;

@@ -1,4 +1,4 @@
-import type { ApiResponse, DbMetadataResponse, DbSummary, GeneratedSqlDraft, QueryResult } from './types'
+import type { ApiResponse, DatabaseType, DbMetadataResponse, DbSummary, GeneratedSqlDraft, QueryResult } from './types'
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
@@ -25,7 +25,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   listDbs: () => request<{ dbs: DbSummary[] }>('/api/v1/dbs'),
-  putDb: (name: string, url: string) => request<{ db: DbSummary }>(`/api/v1/dbs/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ url }) }),
+  putDb: (name: string, url: string, databaseType: DatabaseType) => request<{ db: DbSummary }>(`/api/v1/dbs/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ url, databaseType }) }),
   deleteDb: (name: string) => request<{ deleted: boolean; name: string }>(`/api/v1/dbs/${encodeURIComponent(name)}`, { method: 'DELETE' }),
   getMetadata: (name: string) => request<DbMetadataResponse>(`/api/v1/dbs/${encodeURIComponent(name)}`),
   query: (name: string, sql: string) => request<QueryResult>(`/api/v1/dbs/${encodeURIComponent(name)}/query`, { method: 'POST', body: JSON.stringify({ sql }) }),

@@ -13,7 +13,8 @@ import (
 var dbNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 type putDBRequest struct {
-	URL string `json:"url"`
+	URL          string       `json:"url"`
+	DatabaseType DatabaseType `json:"databaseType"`
 }
 
 func (h *Handler) handleDBs(w http.ResponseWriter, r *http.Request) {
@@ -66,8 +67,14 @@ func (h *Handler) putDB(w http.ResponseWriter, r *http.Request, name string) {
 		writeError(w, http.StatusBadRequest, "invalidRequest", "请求体必须包含 url", nil)
 		return
 	}
+	request.URL = strings.TrimSpace(request.URL)
 	if _, err := url.ParseRequestURI(request.URL); err != nil {
 		writeError(w, http.StatusBadRequest, "invalidRequest", "数据库 URL 格式不正确", nil)
+		return
+	}
+	databaseType, err := resolveDatabaseType(request.DatabaseType, request.URL)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalidRequest", err.Error(), nil)
 		return
 	}
 
@@ -75,7 +82,7 @@ func (h *Handler) putDB(w http.ResponseWriter, r *http.Request, name string) {
 	now := time.Now().Format(time.RFC3339)
 	record := DBConnectionRecord{
 		Name:           name,
-		DatabaseType:   "postgres",
+		DatabaseType:   databaseType,
 		URL:            request.URL,
 		DisplayDSN:     displayDSN,
 		MetadataStatus: MetadataPending,
@@ -89,13 +96,13 @@ func (h *Handler) putDB(w http.ResponseWriter, r *http.Request, name string) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	if err := h.deps.Connector.Test(ctx, request.URL); err != nil {
+	if err := h.deps.Connector.Test(ctx, databaseType, request.URL); err != nil {
 		_ = h.deps.Store.UpdateMetadataStatus(r.Context(), name, MetadataFailed, "数据库连接失败")
 		writeError(w, http.StatusBadRequest, "dbConnectionFailed", "数据库连接失败，请检查 URL、网络和凭据", nil)
 		return
 	}
 
-	metadataDoc, warnings, err := h.deps.Metadata.Collect(ctx, request.URL)
+	metadataDoc, warnings, err := h.deps.Metadata.Collect(ctx, databaseType, request.URL)
 	if err != nil {
 		_ = h.deps.Store.UpdateMetadataStatus(r.Context(), name, MetadataFailed, "metadata 采集失败")
 		writeError(w, http.StatusBadRequest, "metadataCollectionFailed", "metadata 采集失败", nil)
@@ -143,19 +150,22 @@ func (h *Handler) getDBMetadata(w http.ResponseWriter, r *http.Request, name str
 			"metadataStatus":    MetadataFailed,
 			"connectionStatus":  connectionStatus,
 			"metadataUpdatedAt": record.MetadataUpdatedAt,
-			"metadata":          MetadataDocument{DatabaseType: "postgres", Schemas: []MetadataSchema{}},
+			"metadata":          MetadataDocument{DatabaseType: NormalizeDatabaseType(record.DatabaseType), Schemas: []MetadataSchema{}},
 		})
 		return
 	}
 	metadataDoc, updatedAt, err := h.deps.Store.GetLatestMetadataSnapshot(r.Context(), name)
 	if errors.Is(err, ErrNotFound) {
-		metadataDoc = MetadataDocument{DatabaseType: "postgres", Schemas: []MetadataSchema{}}
+		metadataDoc = MetadataDocument{DatabaseType: NormalizeDatabaseType(record.DatabaseType), Schemas: []MetadataSchema{}}
 	} else if err != nil {
 		writeError(w, http.StatusInternalServerError, "internalError", "读取 metadata 失败", nil)
 		return
 	}
 	if updatedAt != nil {
 		record.MetadataUpdatedAt = updatedAt
+	}
+	if metadataDoc.DatabaseType == "" {
+		metadataDoc.DatabaseType = NormalizeDatabaseType(record.DatabaseType)
 	}
 	writeOK(w, map[string]any{
 		"name":              name,
@@ -171,7 +181,7 @@ func validDBName(name string) bool { return dbNamePattern.MatchString(name) }
 func sanitizeDSN(raw string) string {
 	parsed, err := url.Parse(raw)
 	if err != nil {
-		return "postgres://<invalid>"
+		return "<invalid>"
 	}
 	if parsed.User != nil {
 		username := parsed.User.Username()
@@ -203,8 +213,35 @@ func (h *Handler) connectionStatus(ctx context.Context, record DBConnectionRecor
 	}
 	checkCtx, cancel := context.WithTimeout(ctx, 1200*time.Millisecond)
 	defer cancel()
-	if err := h.deps.Connector.Test(checkCtx, record.URL); err != nil {
+	if err := h.deps.Connector.Test(checkCtx, NormalizeDatabaseType(record.DatabaseType), record.URL); err != nil {
 		return "offline"
 	}
 	return "online"
+}
+
+func resolveDatabaseType(requested DatabaseType, rawURL string) (DatabaseType, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+	inferred := DatabaseTypePostgres
+	switch strings.ToLower(parsed.Scheme) {
+	case "postgres", "postgresql":
+		inferred = DatabaseTypePostgres
+	case "mysql", "mysql2":
+		inferred = DatabaseTypeMySQL
+	default:
+		return "", errors.New("数据库 URL scheme 只支持 postgres、postgresql、mysql")
+	}
+	if requested == "" {
+		return inferred, nil
+	}
+	requested = DatabaseType(strings.ToLower(string(requested)))
+	if !SupportedDatabaseType(requested) {
+		return "", errors.New("databaseType 只支持 postgres 或 mysql")
+	}
+	if parsed.Scheme != "" && (strings.HasPrefix(strings.ToLower(parsed.Scheme), "postgres") || strings.HasPrefix(strings.ToLower(parsed.Scheme), "mysql")) && requested != inferred {
+		return "", errors.New("databaseType 与数据库 URL scheme 不匹配")
+	}
+	return requested, nil
 }

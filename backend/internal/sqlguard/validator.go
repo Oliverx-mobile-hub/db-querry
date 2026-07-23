@@ -16,7 +16,16 @@ var forbiddenPattern = regexp.MustCompile(`(?i)\b(insert|update|delete|drop|alte
 var topLevelLimitPattern = regexp.MustCompile(`(?i)\blimit\s+\d+\s*;?\s*$`)
 var selectPattern = regexp.MustCompile(`(?is)^\s*(with\b.+?\bselect\b|select\b)`)
 
-func (Validator) Validate(sqlText string) api.SQLValidationResult {
+func (v Validator) Validate(databaseType api.DatabaseType, sqlText string) api.SQLValidationResult {
+	switch api.NormalizeDatabaseType(databaseType) {
+	case api.DatabaseTypeMySQL:
+		return v.validateMySQL(sqlText)
+	default:
+		return v.validatePostgres(sqlText)
+	}
+}
+
+func (Validator) validatePostgres(sqlText string) api.SQLValidationResult {
 	trimmed := strings.TrimSpace(sqlText)
 	limitValue := 1000
 	result := api.SQLValidationResult{

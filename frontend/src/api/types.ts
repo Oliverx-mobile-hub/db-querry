@@ -8,9 +8,11 @@ export type ApiResponse<T> =
   | { success: true; data: T; error: null }
   | { success: false; data: null; error: ApiError }
 
+export type DatabaseType = 'postgres' | 'mysql'
+
 export type DbSummary = {
   name: string
-  databaseType: 'postgres'
+  databaseType: DatabaseType
   displayDsn: string
   metadataStatus: 'pending' | 'ready' | 'failed'
   connectionStatus: 'online' | 'offline' | 'unknown'
@@ -40,7 +42,7 @@ export type MetadataSchema = {
 }
 
 export type MetadataDocument = {
-  databaseType: 'postgres'
+  databaseType: DatabaseType
   schemas: MetadataSchema[]
 }
 
